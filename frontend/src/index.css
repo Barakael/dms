@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1f5aa5;
+  --color-navy-deep: #174278;
+  --color-navy-light: #2468b8;
+  --color-brand-blue: #2c6cc0;
+  --color-brand-blue-lt: #4a8ce3;
+  --color-danger: #ef4444;
+  --color-danger-dark: #dc2626;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-slate-900 font-sans antialiased;
+  }
+}
+
+.sidebar-gradient {
+  background:
+    radial-gradient(circle at top left, rgba(124, 181, 255, 0.24), transparent 22%),
+    linear-gradient(180deg, #174278 0%, #1f5aa5 58%, #163d71 100%);
+}
+
+.sidebar-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.nav-active {
+  @apply bg-white shadow-lg translate-x-1;
+}
+
+.nav-active .nav-icon {
+  @apply bg-[#deebfd] text-navy-deep;
+}
+
+.nav-active .nav-label {
+  @apply text-navy-deep font-bold;
+}
