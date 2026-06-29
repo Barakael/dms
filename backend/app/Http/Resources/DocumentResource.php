@@ -4,11 +4,14 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Gate;
 
 class DocumentResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $user = $request->user();
+
         return [
             'id' => $this->id,
             'title' => $this->title,
@@ -34,9 +37,9 @@ class DocumentResource extends JsonResource
             'scan_results' => ScanResultResource::collection($this->whenLoaded('scanResults')),
             'tags' => TagResource::collection($this->whenLoaded('tags')),
             'is_previewable' => $this->isPreviewable(),
-            'can_delete' => $request->user()?->can('delete', $this->resource) ?? false,
-            'can_request_deletion' => $request->user()?->can('requestDeletion', $this->resource) ?? false,
-            'can_update' => $request->user()?->can('update', $this->resource) ?? false,
+            'can_delete' => $user ? Gate::forUser($user)->allows('delete', $this->resource) : false,
+            'can_request_deletion' => $user ? Gate::forUser($user)->allows('requestDeletion', $this->resource) : false,
+            'can_update' => $user ? Gate::forUser($user)->allows('update', $this->resource) : false,
         ];
     }
 
