@@ -13,7 +13,7 @@ class UserResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
-            'roles' => $this->getRoleNames(),
+            'roles' => $this->getRoleNames()->values()->all(),
             'staff_profile' => $this->whenLoaded('staffProfile', fn () => new StaffProfileResource($this->staffProfile)),
         ];
     }
