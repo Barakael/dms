@@ -67,13 +67,12 @@ class DocumentDeletionRequestController extends Controller
             fn (User $admin) => $admin->notify(new DocumentDeletionRequested($deletionRequest->load('document')))
         );
 
-        return response()->json(
-            new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester'])),
-            201
-        );
+        return (new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester'])))
+            ->response()
+            ->setStatusCode(201);
     }
 
-    public function approve(Request $request, DocumentDeletionRequest $deletionRequest): JsonResponse
+    public function approve(Request $request, DocumentDeletionRequest $deletionRequest): DocumentDeletionRequestResource
     {
         $request->user()->isSystemAdmin() || abort(403);
         abort_unless($deletionRequest->isPending(), 422, 'This request has already been reviewed.');
@@ -96,10 +95,10 @@ class DocumentDeletionRequestController extends Controller
 
         $deletionRequest->requester?->notify(new DocumentDeletionReviewed($deletionRequest, true));
 
-        return response()->json(new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester', 'reviewer'])));
+        return new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester', 'reviewer']));
     }
 
-    public function reject(Request $request, DocumentDeletionRequest $deletionRequest): JsonResponse
+    public function reject(Request $request, DocumentDeletionRequest $deletionRequest): DocumentDeletionRequestResource
     {
         $request->user()->isSystemAdmin() || abort(403);
         abort_unless($deletionRequest->isPending(), 422, 'This request has already been reviewed.');
@@ -123,6 +122,6 @@ class DocumentDeletionRequestController extends Controller
 
         $deletionRequest->requester?->notify(new DocumentDeletionReviewed($deletionRequest, false));
 
-        return response()->json(new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester', 'reviewer'])));
+        return new DocumentDeletionRequestResource($deletionRequest->load(['document', 'requester', 'reviewer']));
     }
 }
