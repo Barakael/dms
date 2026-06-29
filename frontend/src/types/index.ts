@@ -75,6 +75,22 @@ export interface DocumentItem {
   scan_results?: ScanResult[];
   tags?: Tag[];
   is_previewable?: boolean;
+  can_delete?: boolean;
+  can_request_deletion?: boolean;
+  can_update?: boolean;
+}
+
+export interface DeletionRequest {
+  id: number;
+  document_id: number;
+  reason?: string;
+  status: string;
+  review_note?: string;
+  reviewed_at?: string;
+  created_at?: string;
+  document?: DocumentItem;
+  requester?: User;
+  reviewer?: User;
 }
 
 export interface DocumentPermission {
