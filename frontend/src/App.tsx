@@ -10,6 +10,7 @@ import DocumentDetailPage from "@/pages/DocumentDetailPage";
 import DepartmentsPage from "@/pages/DepartmentsPage";
 import ProjectsPage from "@/pages/ProjectsPage";
 import StaffPage from "@/pages/StaffPage";
+import PendingDeletesPage from "@/pages/PendingDeletesPage";
 import AuditPage from "@/pages/AuditPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="documents/:id" element={<DocumentDetailPage />} />
               <Route path="staff" element={<StaffPage />} />
+              <Route path="pending-deletes" element={<PendingDeletesPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
             </Route>
