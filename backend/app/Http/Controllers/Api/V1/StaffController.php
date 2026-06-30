@@ -20,16 +20,49 @@ class StaffController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
+        $user = $request->user();
+
+        if (! $user->isSystemAdmin() && ! $user->isDepartmentHead() && ! $user->isProjectManager()) {
+            abort(403);
+        }
+
+        $filters = $request->validate([
+            'department_id' => 'nullable|exists:departments,id',
+            'project_id' => 'nullable|exists:projects,id',
+        ]);
+
         $query = StaffProfile::with(['user.roles', 'department', 'project']);
 
-        if (! $request->user()->isSystemAdmin()) {
-            $headedDeptIds = Department::where('head_user_id', $request->user()->id)->pluck('id');
-            $managedProjectIds = Project::where('manager_user_id', $request->user()->id)->pluck('id');
+        if ($user->isSystemAdmin()) {
+            if (! empty($filters['department_id'])) {
+                $query->where('department_id', $filters['department_id']);
+            }
 
-            $query->where(function ($q) use ($headedDeptIds, $managedProjectIds) {
-                $q->whereIn('department_id', $headedDeptIds)
-                    ->orWhereIn('project_id', $managedProjectIds);
-            });
+            if (! empty($filters['project_id'])) {
+                $query->where('project_id', $filters['project_id']);
+            }
+        } elseif ($user->isDepartmentHead()) {
+            $headedDeptIds = Department::where('head_user_id', $user->id)->pluck('id');
+
+            abort_if($headedDeptIds->isEmpty(), 403);
+
+            if (! empty($filters['department_id'])) {
+                abort_unless($headedDeptIds->contains((int) $filters['department_id']), 403);
+                $query->where('department_id', $filters['department_id']);
+            } else {
+                $query->whereIn('department_id', $headedDeptIds);
+            }
+        } else {
+            $managedProjectIds = Project::where('manager_user_id', $user->id)->pluck('id');
+
+            abort_if($managedProjectIds->isEmpty(), 403);
+
+            if (! empty($filters['project_id'])) {
+                abort_unless($managedProjectIds->contains((int) $filters['project_id']), 403);
+                $query->where('project_id', $filters['project_id']);
+            } else {
+                $query->whereIn('project_id', $managedProjectIds);
+            }
         }
 
         return StaffProfileResource::collection($query->orderBy('id')->get());
