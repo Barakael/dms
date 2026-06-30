@@ -259,7 +259,6 @@ export default function DocumentsPage() {
               </select>
             </div>
             <Input type="file" ref={fileRef} />
-            <Input placeholder="Tags (comma separated)" value={tags} onChange={(e) => setTags(e.target.value)} />
             <Input type="date" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setUploadOpen(false)}>Cancel</Button>
