@@ -20,7 +20,7 @@ class StaffController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = StaffProfile::with(['user', 'department', 'project']);
+        $query = StaffProfile::with(['user.roles', 'department', 'project']);
 
         if (! $request->user()->isSystemAdmin()) {
             $headedDeptIds = Department::where('head_user_id', $request->user()->id)->pluck('id');
@@ -100,7 +100,76 @@ class StaffController extends Controller
             Project::where('id', $data['project_id'])->update(['manager_user_id' => $user->id]);
         }
 
-        return response()->json(new StaffProfileResource($profile->load(['user', 'department', 'project'])), 201);
+        return response()->json(new StaffProfileResource($profile->load(['user.roles', 'department', 'project'])), 201);
+    }
+
+    public function update(Request $request, StaffProfile $staff): StaffProfileResource
+    {
+        $request->user()->isSystemAdmin() || abort(403);
+
+        $user = $staff->user;
+        abort_if(! $user, 404, 'User not found.');
+
+        $data = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:8',
+            'title' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'department_id' => 'nullable|exists:departments,id',
+            'project_id' => 'nullable|exists:projects,id',
+            'role' => 'sometimes|in:staff,department_head,project_manager',
+            'status' => 'sometimes|in:active,inactive',
+        ]);
+
+        $userFields = collect($data)->only(['name', 'email'])->filter(fn ($v) => $v !== null)->all();
+        if (! empty($data['password'])) {
+            $userFields['password'] = Hash::make($data['password']);
+        }
+        if ($userFields) {
+            $user->update($userFields);
+        }
+
+        $profileFields = collect($data)->only(['title', 'phone', 'department_id', 'project_id', 'status'])->all();
+        if (array_key_exists('department_id', $data)) {
+            $profileFields['department_id'] = $data['department_id'];
+        }
+        if (array_key_exists('project_id', $data)) {
+            $profileFields['project_id'] = $data['project_id'];
+        }
+        if ($profileFields) {
+            $staff->update($profileFields);
+        }
+
+        if (isset($data['role'])) {
+            $user->syncRoles([$data['role']]);
+
+            if ($data['role'] === 'department_head' && $staff->department_id) {
+                Department::where('id', $staff->department_id)->update(['head_user_id' => $user->id]);
+            }
+
+            if ($data['role'] === 'project_manager' && $staff->project_id) {
+                Project::where('id', $staff->project_id)->update(['manager_user_id' => $user->id]);
+            }
+        }
+
+        return new StaffProfileResource($staff->fresh()->load(['user.roles', 'department', 'project']));
+    }
+
+    public function destroy(Request $request, StaffProfile $staff): JsonResponse
+    {
+        $request->user()->isSystemAdmin() || abort(403);
+        abort_if($staff->user_id === $request->user()->id, 422, 'You cannot delete your own account.');
+
+        $user = $staff->user;
+        abort_if(! $user, 404, 'User not found.');
+
+        Department::where('head_user_id', $user->id)->update(['head_user_id' => null]);
+        Project::where('manager_user_id', $user->id)->update(['manager_user_id' => null]);
+
+        $user->delete();
+
+        return response()->json(['message' => 'Staff member deleted']);
     }
 
     protected function authorizeUnit(Request $request, ?int $departmentId, ?int $projectId, bool $adminOnly = false): void
