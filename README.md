@@ -43,5 +43,3 @@ Open http://localhost:5173
 |-------|----------|------|
 | admin@company.com | password | System Admin |
 | head.eng@company.com | password | Department Head (Engineering) |
-| pm.alpha@company.com | password | Project Manager (Alpha Project) |
-| staff1@company.com | password | Staff |

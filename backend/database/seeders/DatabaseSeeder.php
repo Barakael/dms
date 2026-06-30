@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Engineering', 'description' => 'Engineering department', 'active' => true]
         );
 
-        $hr = Department::firstOrCreate(
+        Department::firstOrCreate(
             ['code' => 'HR'],
             ['name' => 'Human Resources', 'description' => 'HR department', 'active' => true]
         );
@@ -47,7 +47,7 @@ class DatabaseSeeder extends Seeder
             ['department_id' => $engineering->id, 'title' => 'Department Head', 'status' => 'active']
         );
 
-        $alphaProject = Project::firstOrCreate(
+        Project::firstOrCreate(
             ['code' => 'ALPHA'],
             [
                 'name' => 'Alpha Project',
@@ -55,48 +55,6 @@ class DatabaseSeeder extends Seeder
                 'department_id' => $engineering->id,
                 'active' => true,
             ]
-        );
-
-        $pm = User::firstOrCreate(
-            ['email' => 'pm.alpha@company.com'],
-            ['name' => 'Alpha PM', 'password' => Hash::make('password')]
-        );
-        $pm->syncRoles(['project_manager']);
-        $alphaProject->update(['manager_user_id' => $pm->id]);
-
-        StaffProfile::firstOrCreate(
-            ['user_id' => $pm->id],
-            ['department_id' => $engineering->id, 'project_id' => $alphaProject->id, 'title' => 'Project Manager', 'status' => 'active']
-        );
-
-        $staff1 = User::firstOrCreate(
-            ['email' => 'staff1@company.com'],
-            ['name' => 'Staff One', 'password' => Hash::make('password')]
-        );
-        $staff1->syncRoles(['staff']);
-        StaffProfile::firstOrCreate(
-            ['user_id' => $staff1->id],
-            ['department_id' => $engineering->id, 'project_id' => $alphaProject->id, 'title' => 'Engineer', 'status' => 'active']
-        );
-
-        $staff2 = User::firstOrCreate(
-            ['email' => 'staff2@company.com'],
-            ['name' => 'Staff Two', 'password' => Hash::make('password')]
-        );
-        $staff2->syncRoles(['staff']);
-        StaffProfile::firstOrCreate(
-            ['user_id' => $staff2->id],
-            ['department_id' => $engineering->id, 'title' => 'Analyst', 'status' => 'active']
-        );
-
-        $auditor = User::firstOrCreate(
-            ['email' => 'auditor@company.com'],
-            ['name' => 'Compliance Auditor', 'password' => Hash::make('password')]
-        );
-        $auditor->syncRoles(['auditor']);
-        StaffProfile::firstOrCreate(
-            ['user_id' => $auditor->id],
-            ['department_id' => $hr->id, 'title' => 'Auditor', 'status' => 'active']
         );
     }
 }
