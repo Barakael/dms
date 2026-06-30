@@ -17,7 +17,7 @@ class StaffManagementTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['system_admin', 'staff'] as $role) {
+        foreach (['system_admin', 'staff', 'department_head', 'project_manager'] as $role) {
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'sanctum']);
         }
     }
@@ -87,5 +87,83 @@ class StaffManagementTest extends TestCase
         $this->actingAs($other, 'sanctum')
             ->deleteJson("/api/v1/staff/{$profile->id}")
             ->assertForbidden();
+    }
+
+    public function test_regular_staff_cannot_list_staff(): void
+    {
+        $staffUser = User::factory()->create();
+        $staffUser->assignRole('staff');
+
+        StaffProfile::create([
+            'user_id' => $staffUser->id,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($staffUser, 'sanctum')
+            ->getJson('/api/v1/staff')
+            ->assertForbidden();
+    }
+
+    public function test_department_head_only_sees_staff_in_their_department(): void
+    {
+        $head = User::factory()->create();
+        $head->assignRole('department_head');
+
+        $deptA = Department::create(['name' => 'Dept A', 'code' => 'A', 'active' => true, 'head_user_id' => $head->id]);
+        $deptB = Department::create(['name' => 'Dept B', 'code' => 'B', 'active' => true]);
+
+        $staffInA = User::factory()->create();
+        $staffInA->assignRole('staff');
+        StaffProfile::create(['user_id' => $staffInA->id, 'department_id' => $deptA->id, 'status' => 'active']);
+
+        $staffInB = User::factory()->create();
+        $staffInB->assignRole('staff');
+        StaffProfile::create(['user_id' => $staffInB->id, 'department_id' => $deptB->id, 'status' => 'active']);
+
+        $response = $this->actingAs($head, 'sanctum')
+            ->getJson('/api/v1/staff')
+            ->assertOk();
+
+        $ids = collect($response->json('data'))->pluck('id');
+        $this->assertCount(1, $ids);
+        $this->assertTrue($ids->contains(StaffProfile::where('user_id', $staffInA->id)->value('id')));
+    }
+
+    public function test_department_head_cannot_filter_by_other_department(): void
+    {
+        $head = User::factory()->create();
+        $head->assignRole('department_head');
+
+        $deptA = Department::create(['name' => 'Dept A', 'code' => 'A', 'active' => true, 'head_user_id' => $head->id]);
+        $deptB = Department::create(['name' => 'Dept B', 'code' => 'B', 'active' => true]);
+
+        $this->actingAs($head, 'sanctum')
+            ->getJson("/api/v1/staff?department_id={$deptB->id}")
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_filter_staff_by_department(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('system_admin');
+
+        $deptA = Department::create(['name' => 'Dept A', 'code' => 'A', 'active' => true]);
+        $deptB = Department::create(['name' => 'Dept B', 'code' => 'B', 'active' => true]);
+
+        $staffInA = User::factory()->create();
+        $staffInA->assignRole('staff');
+        $profileA = StaffProfile::create(['user_id' => $staffInA->id, 'department_id' => $deptA->id, 'status' => 'active']);
+
+        $staffInB = User::factory()->create();
+        $staffInB->assignRole('staff');
+        StaffProfile::create(['user_id' => $staffInB->id, 'department_id' => $deptB->id, 'status' => 'active']);
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/v1/staff?department_id={$deptA->id}")
+            ->assertOk();
+
+        $ids = collect($response->json('data'))->pluck('id');
+        $this->assertCount(1, $ids);
+        $this->assertTrue($ids->contains($profileA->id));
     }
 }
