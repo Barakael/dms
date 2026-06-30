@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 # Obtain Let's Encrypt certificate for dms.teratech.co.tz
-# Run on server while the HTTP (port 80) site is already working.
+# Order: HTTP config → certbot → HTTPS config
 set -euo pipefail
 
 DOMAIN="dms.teratech.co.tz"
 EMAIL="${CERTBOT_EMAIL:-admin@teratech.co.tz}"
+APP_ROOT="/var/www/dms"
+NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}"
 
 if ! command -v certbot >/dev/null 2>&1; then
   echo "Install certbot first: sudo apt install certbot python3-certbot-nginx"
   exit 1
 fi
 
-echo "==> Requesting certificate for ${DOMAIN}"
+echo "==> Step 1: HTTP-only nginx (required before certificate exists)"
+sudo cp "${APP_ROOT}/deploy/nginx/${DOMAIN}.http.conf" "${NGINX_SITE}"
+sudo ln -sf "${NGINX_SITE}" "/etc/nginx/sites-enabled/${DOMAIN}"
+sudo nginx -t
+sudo systemctl reload nginx
+
+echo "==> Step 2: Request certificate"
 sudo certbot certonly \
   --nginx \
   -d "${DOMAIN}" \
@@ -20,11 +28,11 @@ sudo certbot certonly \
   --non-interactive \
   --keep-until-expiring
 
-echo "==> Installing SSL nginx config"
-sudo cp "/var/www/dms/deploy/nginx/${DOMAIN}.conf" "/etc/nginx/sites-available/${DOMAIN}"
-sudo ln -sf "/etc/nginx/sites-available/${DOMAIN}" "/etc/nginx/sites-enabled/${DOMAIN}"
+echo "==> Step 3: HTTPS nginx config"
+sudo cp "${APP_ROOT}/deploy/nginx/${DOMAIN}.conf" "${NGINX_SITE}"
 sudo nginx -t
 sudo systemctl reload nginx
 
-echo "==> Certificate installed. Test: https://${DOMAIN}/"
-echo "Renewal is automatic via certbot timer. Check: sudo certbot renew --dry-run"
+echo "==> Done. Open https://${DOMAIN}/"
+echo "Update backend .env: APP_URL=https://${DOMAIN}"
+echo "Then: cd ${APP_ROOT}/backend && php artisan config:cache"
