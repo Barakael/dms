@@ -31,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/staff', [StaffController::class, 'index']);
         Route::post('/staff', [StaffController::class, 'store']);
+        Route::patch('/staff/{staff}', [StaffController::class, 'update']);
+        Route::delete('/staff/{staff}', [StaffController::class, 'destroy']);
         Route::get('/departments/{department}/staff', [StaffController::class, 'departmentStaff']);
         Route::get('/projects/{project}/staff', [StaffController::class, 'projectStaff']);
 
