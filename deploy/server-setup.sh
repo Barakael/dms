@@ -5,7 +5,7 @@ set -euo pipefail
 APP_ROOT="/var/www/dms"
 DOMAIN="dms.teratech.co.tz"
 NGINX_SITE="/etc/nginx/sites-available/${DOMAIN}"
-PHP_SOCK="php8.3-fpm.sock"
+PHP_SOCK="php8.4-fpm.sock"
 
 if [[ ! -d "${APP_ROOT}/backend" ]]; then
   echo "Expected project at ${APP_ROOT}. Clone the repo there first."
