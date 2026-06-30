@@ -31,8 +31,9 @@ class FolderController extends Controller
 
         $query = Folder::with('children')->withCount('documents')
             ->when($data['department_id'] ?? null, fn ($q, $id) => $q->where('department_id', $id))
-            ->when($data['project_id'] ?? null, fn ($q, $id) => $q->where('project_id', $id))
-            if (array_key_exists('parent_id', $data)) {
+            ->when($data['project_id'] ?? null, fn ($q, $id) => $q->where('project_id', $id));
+
+        if (array_key_exists('parent_id', $data)) {
             $query->where('parent_id', $data['parent_id']);
         } else {
             $query->whereNull('parent_id');
