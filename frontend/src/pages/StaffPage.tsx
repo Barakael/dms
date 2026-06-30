@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import api from "@/lib/api";
 import type { Department, Project, StaffProfile } from "@/types";
@@ -9,20 +9,35 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { useAuth } from "@/contexts/AuthContext";
 
+function emptyStaffForm() {
+  return {
+    name: "",
+    email: "",
+    password: "",
+    title: "",
+    phone: "",
+    departmentId: "",
+    projectId: "",
+    role: "staff",
+    status: "active",
+  };
+}
+
+function roleFromMember(member: StaffProfile): string {
+  const roles = member.user?.roles ?? [];
+  if (roles.includes("department_head")) return "department_head";
+  if (roles.includes("project_manager")) return "project_manager";
+  return "staff";
+}
+
 export default function StaffPage() {
   const { hasRole, user } = useAuth();
   const isAdmin = hasRole("system_admin");
   const canManageStaff = hasRole("system_admin", "department_head", "project_manager");
   const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [title, setTitle] = useState("");
-  const [phone, setPhone] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [role, setRole] = useState("staff");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<StaffProfile | null>(null);
+  const [form, setForm] = useState(emptyStaffForm());
 
   const { data: staff, isLoading } = useQuery<StaffProfile[]>({
     queryKey: ["staff"],
@@ -36,7 +51,7 @@ export default function StaffPage() {
       const res = await api.get(endpoint);
       return res.data.data ?? res.data;
     },
-    enabled: canManageStaff && createOpen,
+    enabled: canManageStaff && modalOpen,
   });
 
   const { data: projects } = useQuery<Project[]>({
@@ -46,7 +61,7 @@ export default function StaffPage() {
       const res = await api.get(endpoint);
       return res.data.data ?? res.data;
     },
-    enabled: canManageStaff && createOpen,
+    enabled: canManageStaff && modalOpen,
   });
 
   const managedDepartments = useMemo(() => {
@@ -59,31 +74,67 @@ export default function StaffPage() {
     return (projects ?? []).filter((p) => p.manager_user_id === user?.id);
   }, [projects, isAdmin, user?.id]);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      api.post("/v1/staff", {
-        name,
-        email,
-        password,
-        title: title || undefined,
-        phone: phone || undefined,
-        department_id: departmentId ? Number(departmentId) : undefined,
-        project_id: projectId ? Number(projectId) : undefined,
-        role,
-      }),
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingMember(null);
+    setForm(emptyStaffForm());
+  };
+
+  const openCreate = () => {
+    setEditingMember(null);
+    setForm(emptyStaffForm());
+    setModalOpen(true);
+  };
+
+  const openEdit = (member: StaffProfile) => {
+    setEditingMember(member);
+    setForm({
+      name: member.user?.name ?? "",
+      email: member.user?.email ?? "",
+      password: "",
+      title: member.title ?? "",
+      phone: member.phone ?? "",
+      departmentId: member.department_id ? String(member.department_id) : "",
+      projectId: member.project_id ? String(member.project_id) : "",
+      role: roleFromMember(member),
+      status: member.status ?? "active",
+    });
+    setModalOpen(true);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const payload = {
+        name: form.name,
+        email: form.email,
+        title: form.title || undefined,
+        phone: form.phone || undefined,
+        department_id: form.departmentId ? Number(form.departmentId) : null,
+        project_id: form.projectId ? Number(form.projectId) : null,
+        role: form.role,
+        status: form.status,
+        ...(form.password ? { password: form.password } : {}),
+      };
+
+      if (editingMember) {
+        return api.patch(`/v1/staff/${editingMember.id}`, payload);
+      }
+
+      return api.post("/v1/staff", { ...payload, password: form.password });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
-      setCreateOpen(false);
-      setName("");
-      setEmail("");
-      setPassword("");
-      setTitle("");
-      setPhone("");
-      setDepartmentId("");
-      setProjectId("");
-      setRole("staff");
+      closeModal();
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/v1/staff/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staff"] }),
+  });
+
+  const deptOptions = isAdmin ? departments : managedDepartments;
+  const projectOptions = isAdmin ? projects : managedProjects;
 
   return (
     <div className="space-y-5">
@@ -93,7 +144,7 @@ export default function StaffPage() {
           <p className="text-sm text-slate-500">Team members in your departments and projects</p>
         </div>
         {canManageStaff && (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" /> Add Staff
           </Button>
         )}
@@ -107,20 +158,46 @@ export default function StaffPage() {
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="text-left px-5 py-3">Name</th>
+                <th className="text-left px-5 py-3">Email</th>
                 <th className="text-left px-5 py-3">Title</th>
                 <th className="text-left px-5 py-3">Department</th>
                 <th className="text-left px-5 py-3">Project</th>
                 <th className="text-left px-5 py-3">Status</th>
+                {isAdmin && <th className="text-right px-5 py-3">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {staff?.map((member) => (
                 <tr key={member.id} className="hover:bg-slate-50">
                   <td className="px-5 py-3 font-medium">{member.user?.name ?? "—"}</td>
+                  <td className="px-5 py-3 text-slate-600">{member.user?.email ?? "—"}</td>
                   <td className="px-5 py-3">{member.title ?? "—"}</td>
                   <td className="px-5 py-3">{member.department?.name ?? "—"}</td>
                   <td className="px-5 py-3">{member.project?.name ?? "—"}</td>
-                  <td className="px-5 py-3"><Badge variant={member.status === "active" ? "success" : "default"}>{member.status}</Badge></td>
+                  <td className="px-5 py-3">
+                    <Badge variant={member.status === "active" ? "success" : "default"}>{member.status}</Badge>
+                  </td>
+                  {isAdmin && (
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEdit(member)}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          disabled={member.user?.id === user?.id}
+                          onClick={() => {
+                            if (window.confirm(`Delete staff member "${member.user?.name}"?`)) {
+                              deleteMutation.mutate(member.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -128,55 +205,75 @@ export default function StaffPage() {
         )}
       </div>
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Add Staff">
-        <Input placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Input type="password" placeholder="Password (min 8 characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <Input placeholder="Job title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <Modal open={modalOpen} onClose={closeModal} title={editingMember ? "Edit Staff" : "Add Staff"}>
+        <Input placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <Input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        <Input
+          type="password"
+          placeholder={editingMember ? "New password (leave blank to keep)" : "Password (min 8 characters)"}
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+        />
+        <Input placeholder="Job title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+        <Input placeholder="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <select
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          value={departmentId}
-          onChange={(e) => setDepartmentId(e.target.value)}
+          value={form.departmentId}
+          onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
         >
           <option value="">Department (optional)</option>
-          {(isAdmin ? departments : managedDepartments)?.map((dept) => (
+          {deptOptions?.map((dept) => (
             <option key={dept.id} value={dept.id}>{dept.name}</option>
           ))}
         </select>
         <select
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
+          value={form.projectId}
+          onChange={(e) => setForm({ ...form, projectId: e.target.value })}
         >
           <option value="">Project (optional)</option>
-          {(isAdmin ? projects : managedProjects)?.map((project) => (
+          {projectOptions?.map((project) => (
             <option key={project.id} value={project.id}>{project.name}</option>
           ))}
         </select>
         {isAdmin ? (
-          <select
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="staff">Staff</option>
-            <option value="department_head">Department Head</option>
-            <option value="project_manager">Project Manager</option>
-          </select>
+          <>
+            <select
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+            >
+              <option value="staff">Staff</option>
+              <option value="department_head">Department Head</option>
+              <option value="project_manager">Project Manager</option>
+            </select>
+            <select
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </>
         ) : (
           <input type="hidden" value="staff" readOnly />
         )}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button variant="outline" onClick={closeModal}>Cancel</Button>
           <Button
-            onClick={() => createMutation.mutate()}
-            disabled={createMutation.isPending || !name || !email || password.length < 8}
+            onClick={() => saveMutation.mutate()}
+            disabled={
+              saveMutation.isPending
+              || !form.name
+              || !form.email
+              || (!editingMember && form.password.length < 8)
+            }
           >
-            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : editingMember ? "Save" : "Create"}
           </Button>
         </div>
-        {createMutation.isError && <p className="text-sm text-danger">Failed to create staff member.</p>}
+        {saveMutation.isError && <p className="text-sm text-danger">Failed to save staff member.</p>}
       </Modal>
     </div>
   );
